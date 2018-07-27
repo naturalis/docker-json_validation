@@ -1,0 +1,59 @@
+version: '3'
+services:
+  json_validation:
+    image: "naturalis/json_validation:0.0.1"
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+     - "8080:80"
+    volumes:
+     - "./www:/var/www/html"
+     - "./data:/data"
+    networks:
+      - default
+    labels:
+      - "traefik.backend=json_validation"
+      - "traefik.docker.network=web"
+      - "traefik.enable=true"
+      - "traefik.port=80"
+      - ${JSON_URL_CONFIG:-traefik.frontend.rule=Host:json.naturalis.nl}
+  minio:
+    image: "minio/minio"
+    restart: unless-stopped
+    command: "server /data"
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-12345}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-12345678}
+    ports:
+      - "9000:9000"
+    volumes:
+      - "/data/json_validation/data:/data"
+      - "/data/json_validation/minioconfig:/root/.minio"
+    networks:
+      - default
+    labels:
+      - "traefik.backend=minio"
+      - "traefik.docker.network=web"
+      - "traefik.enable=true"
+      - "traefik.port=9000"
+      - ${MINIO_URL_CONFIG:-traefik.frontend.rule=Host:json-storage.naturalis.nl}
+  traefik:
+    image: traefik:1.5.3
+    restart: always
+    ports:
+      - 80:80
+      - 443:443
+    networks:
+      - default
+      - web
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${TRAEFIK_TOML_FILE:-./traefik.dev.toml}:/traefik.toml
+      - ${ACME_JSON:-./acme.json}:/acme.json
+
+# run docker network create web before
+networks:
+  web:
+    external: true
+
